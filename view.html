@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sơ Đồ Luồng Nghiệp Vụ </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'dark',
+            securityLevel: 'loose',
+            fontFamily: 'Inter'
+        });
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .mermaid-container { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-12">
+        <!-- Header -->
+        <div class="text-center border-b border-slate-700 pb-8">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 mb-3">
+                <i class="fas fa-shield-alt"></i>DEADLINE MANAGEMENT SYSTEM
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-emerald-400 to-purple-400 mb-4">
+                Luồng Nghiệp Vụ Hệ Thống (Workflow & Tax Rules)
+            </h1>
+            <p class="text-slate-400 text-lg max-w-3xl mx-auto">
+                Tài liệu mô tả chi tiết cách dữ liệu chảy trong hệ thống: từ khởi tạo hồ sơ công ty, quy tắc tự động sinh task theo luật thuế Canada, vòng đời xử lý công việc, phân quyền nhân sự đến bảng tra cứu hạn nộp (Deadline).
+            </p>
+        </div>
+
+        <!-- Flow 1: Luồng Tổng Thể (System Data Flow) -->
+        <section class="space-y-4">
+            <div class="flex items-center gap-3 text-2xl font-bold text-emerald-400">
+                <i class="fas fa-project-diagram"></i>
+                <h2>1. Luồng Vận Hành Tổng Thể</h2>
+            </div>
+            <p class="text-slate-300">
+                Mô tả cách hệ thống tự động sinh ra công việc (Tasks) dựa trên cấu hình chu kỳ thuế của từng công ty (Company Config).
+            </p>
+            
+            <div class="mermaid-container shadow-2xl overflow-x-auto">
+                <div class="mermaid">
+                    graph TD
+                        subgraph Admin ["Khởi tạo và Cấu hình (Admin/Manager/Team Lead)"]
+                            M["Manager / Admin"] -->|"Tạo hồ sơ, Phân Team & Cấu hình thuế"| C("Company: Hồ sơ Công Ty")
+                            TL_Init["Team Lead"] -->|"Tạo hồ sơ cho Team mình"| C
+                        end
+                        
+                        C -->|"Lưu trữ"| DB[("Database")]
+                        
+                        subgraph Scheduler ["Hệ Thống Tự Động (Cron Job / Scheduler)"]
+                            Cron(("Chạy định kỳ hoặc khi đổi Cấu hình")) --> S{"Auto Scheduler"}
+                            DB --> S
+                            
+                            S --> CheckStatus{"Trạng thái Công ty?"}
+                            CheckStatus -->|"Closed / Left"| Clean["Dừng tạo việc & Dọn dẹp task tương lai"]
+                            CheckStatus -->|"Active"| GenTask["Tính toán và Tự động sinh Task"]
+                            
+                            GenTask -->|"Chu kỳ Tháng/Quý/Năm"| T1["Task: Bookkeeping (BK)"]
+                            GenTask -->|"Chu kỳ Tháng/Quý/Năm"| T2["Task: GST / PST / QST"]
+                            GenTask -->|"Hàng tháng (Hạn ngày 15)"| T3["Task: Payroll (12 kỳ/năm)"]
+                            GenTask -->|"Cuối năm tài chính"| T4["Task: Year-End (T2/T1)"]
+                            GenTask -->|"Đầu năm (Hạn cuối T2/T6)"| T5["Task: T-Forms (T4/T5/T5018)"]
+                        end
+
+                        subgraph Team ["Thực thi và Giám sát (Team Kế Toán)"]
+                            T1 -->|"Gán vào Team"| TL("Team Lead")
+                            T2 -->|"Gán vào Team"| TL
+                            T3 -->|"Gán vào Team"| TL
+                            T4 -->|"Gán vào Team"| TL
+                            T5 -->|"Gán vào Team"| TL
+                            
+                            TL -->|"Giao việc (Assign)"| NV("Senior / Junior")
+                            NV -->|"Xử lý, ghi chú & Cập nhật tiến độ"| Done["Hoàn tất hồ sơ"]
+                            
+                            Overdue(("Quét Quá Hạn Hàng Ngày")) -.->|"Cảnh báo quá hạn"| TL
+                            Overdue -.->|"Báo cáo leo thang"| M
+                        end
+
+                        style M fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff
+                        style TL_Init fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
+                        style C fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff
+                        style S fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff
+                        style TL fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#fff
+                        style NV fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#fff
+                        style Cron fill:#ef4444,stroke:#dc2626,color:#fff
+                        style CheckStatus fill:#475569,stroke:#334155,color:#fff
+                        style Overdue fill:#ef4444,stroke:#dc2626,color:#fff
+                </div>
+            </div>
+        </section>
+
+        <!-- Flow 2: Luồng Trạng Thái Công Việc (Task Lifecycle) -->
+        <section class="space-y-4">
+            <div class="flex items-center gap-3 text-2xl font-bold text-orange-400">
+                <i class="fas fa-tasks"></i>
+                <h2>2. Vòng Đời Một Công Việc (Task Status Workflow & BK Dependency)</h2>
+            </div>
+            <p class="text-slate-300">
+                Luồng xử lý chi tiết một công việc từ lúc tạo ra đến khi nộp xong. 
+                <span class="text-amber-400 font-semibold">Quy tắc bắt buộc (BK Dependency):</span> Phải làm Bookkeeping xong mới được phép đóng (Complete) task GST hoặc Year-End.
+            </p>
+            
+            <div class="mermaid-container shadow-2xl overflow-x-auto">
+                <div class="mermaid">
+                    graph TD
+                        subgraph Company [Hồ sơ: CÔNG TY KHÁCH HÀNG]
+                            C_Status(Trạng thái: Đang hoạt động / Active)
+                        end
+                        
+                        C_Status -->|Hệ thống tự động sinh Task| Start((Bắt đầu một Task))
+                        
+                        Start --> Todo[Todo: Task mới cần làm]
+                        
+                        Todo -->|Kế toán xin hồ sơ, hóa đơn| DocRequested[Documents Requested]
+                        DocRequested -->|Khách đã nộp đủ hồ sơ| DocReceived[Documents Received]
+                        DocReceived -->|Bắt đầu làm sổ sách / xử lý| Bookkeeping[Bookkeeping / Processing]
+                        
+                        %% Nhánh N/A
+                        Todo -->|Không có nghĩa vụ thuế đó<br>VD: No GST, No PST| NA[N/A: Không áp dụng<br>Cấm chọn đối với Year-End]
+                        
+                        %% Nhánh Stuck & 3rd Party
+                        Bookkeeping -->|Thiếu thông tin / Chờ CRA<br>Bắt buộc chọn lý do kẹt| Stuck[Stuck: Bị tắc nghẽn]
+                        Stuck -.->|Có thông tin, tiếp tục làm| Bookkeeping
+                        
+                        Bookkeeping -->|Chờ phản hồi ngân hàng/đối tác| ThirdParty[3rd Party: Bên thứ 3]
+                        ThirdParty -.->|Nhận phản hồi, làm tiếp| Bookkeeping
+                        
+                        %% Hoàn tất BK và Soát xét
+                        Bookkeeping -->|Làm xong số liệu| Review[Review: Soát xét hồ sơ]
+                        Review -.->|Có sai sót, trả về làm lại| Bookkeeping
+                        
+                        %% Kiểm tra ràng buộc BK Dependency
+                        Review -->|Chuẩn bị đóng Task| CheckRule{Kiểm tra ràng buộc<br>BK Dependency?}
+                        
+                        CheckRule -->|Nếu là task GST hoặc Year-End<br>mà task BK cùng kỳ chưa Completed| Blocked[Hệ thống CHẶN báo lỗi HTTP 400]
+                        CheckRule -->|Đã làm xong BK hoặc là task khác| Completed[Completed: Hoàn tất nộp thuế]
+                        
+                        Completed --> End((Kết thúc kỳ làm việc))
+                        
+                        style Company fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#93c5fd
+                        style Todo fill:#475569,stroke:#334155,color:#fff
+                        style DocRequested fill:#2563eb,stroke:#1d4ed8,color:#fff
+                        style DocReceived fill:#06b6d4,stroke:#0891b2,color:#fff
+                        style Bookkeeping fill:#4f46e5,stroke:#4338ca,color:#fff
+                        style Stuck fill:#ef4444,stroke:#dc2626,color:#fff
+                        style ThirdParty fill:#9333ea,stroke:#7e22ce,color:#fff
+                        style NA fill:#64748b,stroke:#475569,color:#fff
+                        style Review fill:#f59e0b,stroke:#d97706,color:#fff
+                        style Completed fill:#10b981,stroke:#059669,color:#fff
+                        style Blocked fill:#b91c1c,stroke:#7f1d1d,color:#fff
+                </div>
+            </div>
+        </section>
+
+        <!-- Flow 3: Phân Quyền (RBAC) -->
+        <section class="space-y-4">
+            <div class="flex items-center gap-3 text-2xl font-bold text-blue-400">
+                <i class="fas fa-user-shield"></i>
+                <h2>3. Ma Trận Phân Quyền Nhân Sự (RBAC)</h2>
+            </div>
+            <p class="text-slate-300">
+                Phân định rõ ranh giới quyền hạn giữa các cấp bậc nhân sự trong công ty kế toán.
+            </p>
+            
+            <div class="bg-[#1e293b] border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-800 text-slate-300">
+                        <tr>
+                            <th class="p-4 border-b border-slate-700">Chức năng & Tác vụ</th>
+                            <th class="p-4 border-b border-slate-700 text-center"><span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded font-semibold">Manager</span><br><span class="text-xs font-normal text-slate-400">(Toàn quyền hệ thống)</span></th>
+                            <th class="p-4 border-b border-slate-700 text-center"><span class="bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded font-semibold">Team Lead</span><br><span class="text-xs font-normal text-slate-400">(Quản lý nội bộ Team)</span></th>
+                            <th class="p-4 border-b border-slate-700 text-center"><span class="bg-orange-500/20 text-orange-400 px-2 py-1 rounded font-semibold">Senior / Junior</span><br><span class="text-xs font-normal text-slate-400">(Nhân viên thực hiện)</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-300 divide-y divide-slate-700/50">
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-medium">Tạo hồ sơ Công ty mới</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Toàn quyền (mọi Team)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Tạo trong Team của mình</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Không có quyền</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-medium">Xóa Công ty</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Được phép</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Bị chặn</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Bị chặn</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-medium">Cấu hình Thuế (GST, BK, Year-End, Payroll, T-Forms)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Chỉnh sửa & Tái sinh task</td>
+                            <td class="p-4 text-center text-amber-400"><i class="fas fa-eye"></i> Chỉ xem cấu hình</td>
+                            <td class="p-4 text-center text-amber-400"><i class="fas fa-eye"></i> Chỉ xem cấu hình</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-medium">Chuyển trạng thái Công ty (Active / Left / Closed)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Được phép</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Bị chặn</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Bị chặn</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-medium">Xem danh sách Công ty & Task</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Tất cả các Team</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Mở xem toàn bộ</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Mở xem toàn bộ</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-medium">Bảng điều khiển (Dashboard thống kê)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Toàn hệ thống</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Dữ liệu Team phụ trách</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Không có quyền</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-medium">Phân công việc (Assignee)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Phân công cho bất kỳ ai</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Giao việc cho nhân sự trong Team</td>
+                            <td class="p-4 text-center text-red-400"><i class="fas fa-times"></i> Không có quyền</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-medium">Cập nhật trạng thái Task (Đổi status)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Mọi trạng thái</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Mọi trạng thái</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Được làm (Junior không tự Complete)</td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-medium">Checklist, Note nhanh & Bình luận (Comment)</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Toàn quyền</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Toàn quyền trong Team</td>
+                            <td class="p-4 text-center text-emerald-400"><i class="fas fa-check"></i> Được thêm & sửa ghi chú của mình</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Flow 4: Bảng Tra Cứu Deadline Thuế Canada (CRA Tax Rules Reference) -->
+        <section class="space-y-4">
+            <div class="flex items-center gap-3 text-2xl font-bold text-purple-400">
+                <i class="fas fa-calendar-alt"></i>
+                <h2>4. Bảng Tra Cứu Quy Tắc Tính Deadline Thuế (CRA Standards)</h2>
+            </div>
+            <p class="text-slate-300">
+                Tài liệu tham chiếu chuẩn dùng cho lập trình và kiểm thử logic tính toán hạn chót (Deadline) của từng loại Task.
+            </p>
+            
+            <div class="bg-[#1e293b] border border-slate-700 rounded-xl overflow-hidden shadow-2xl overflow-x-auto">
+                <table class="w-full text-left text-sm min-w-[750px]">
+                    <thead class="bg-slate-800 text-slate-300">
+                        <tr>
+                            <th class="p-4 border-b border-slate-700 w-32">Loại Task</th>
+                            <th class="p-4 border-b border-slate-700 w-44">Chu kỳ nộp (Frequency)</th>
+                            <th class="p-4 border-b border-slate-700">Công thức tính Hạn chót (Deadline)</th>
+                            <th class="p-4 border-b border-slate-700 w-60">Ví dụ cụ thể</th>
+                            <th class="p-4 border-b border-slate-700 w-52">Ràng buộc nghiệp vụ</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-300 divide-y divide-slate-700/50">
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-bold text-blue-400">Bookkeeping (BK)</td>
+                            <td class="p-4 text-xs">Monthly, Every 2 Months, Quarterly, Semi-yearly, Annually</td>
+                            <td class="p-4 text-xs font-mono">
+                                • Chu kỳ Tháng/Quý: Cuối tháng sau (M+1)<br>
+                                • Khai năm (Annually): Ngày 15 của tháng M+2
+                            </td>
+                            <td class="p-4 text-xs">
+                                Kỳ 01/2026 ➔ Hạn 28/02/2026<br>
+                                Kỳ Q1 (03/2026) ➔ Hạn 30/04/2026
+                            </td>
+                            <td class="p-4 text-xs text-amber-300">
+                                <b>Tiền đề:</b> Phải xong BK thì mới được Complete task GST & Year-End.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-bold text-emerald-400">GST / HST</td>
+                            <td class="p-4 text-xs">Monthly, Quarterly (1/4/7/10, 2/5/8/11, 3/6/9/12), Annually - M</td>
+                            <td class="p-4 text-xs font-mono">
+                                • Tháng/Quý: Cuối tháng sau (M+1)<br>
+                                • Năm (Annually - M): Cuối tháng thứ 3 sau năm tài chính (M+3)
+                            </td>
+                            <td class="p-4 text-xs">
+                                Kỳ 03/2026 ➔ Hạn 30/04/2026<br>
+                                Annually FYE T12 ➔ Hạn 31/03 năm sau
+                            </td>
+                            <td class="p-4 text-xs">
+                                Bị chặn nếu BK chưa xong.<br>
+                                Cho phép trạng thái <span class="text-slate-400 font-mono">N/A</span> nếu công ty No GST.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-bold text-cyan-400">PST (BC, SK, MB)</td>
+                            <td class="p-4 text-xs">Monthly, Quarterly, Annually</td>
+                            <td class="p-4 text-xs font-mono">
+                                Ngày 15 của tháng tiếp theo (M+1 ngày 15)
+                            </td>
+                            <td class="p-4 text-xs">
+                                Kỳ 03/2026 ➔ Hạn 15/04/2026
+                            </td>
+                            <td class="p-4 text-xs">
+                                Tách thành task độc lập với GST.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-bold text-teal-400">QST (Quebec)</td>
+                            <td class="p-4 text-xs">Monthly, Quarterly, Annually</td>
+                            <td class="p-4 text-xs font-mono">
+                                Ngày cuối cùng của tháng tiếp theo (M+1)
+                            </td>
+                            <td class="p-4 text-xs">
+                                Kỳ 03/2026 ➔ Hạn 30/04/2026
+                            </td>
+                            <td class="p-4 text-xs">
+                                Thuế bán hàng riêng của tỉnh Quebec.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-bold text-amber-400">Payroll</td>
+                            <td class="p-4 text-xs">12 tháng trong năm (Reminder, Auto, Need to pay, Special)</td>
+                            <td class="p-4 text-xs font-mono text-emerald-300">
+                                Ngày 15 của tháng tiếp theo (M+1 ngày 15)
+                            </td>
+                            <td class="p-4 text-xs">
+                                Lương T01/2026 ➔ Hạn nộp 15/02/2026<br>
+                                Lương T12/2026 ➔ Hạn nộp 15/01/2027
+                            </td>
+                            <td class="p-4 text-xs">
+                                Có bảng quản lý riêng (PayrollTaskTable), lọc theo 4 nhóm xử lý.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-bold text-purple-400">Year-End (Doanh nghiệp Corp)</td>
+                            <td class="p-4 text-xs">Mỗi năm 1 lần (theo Fiscal Year End 1-12)</td>
+                            <td class="p-4 text-xs font-mono text-emerald-300">
+                                Cuối tháng thứ 3 sau Fiscal Year End (FYE + 3)
+                            </td>
+                            <td class="p-4 text-xs">
+                                FYE = Tháng 7 ➔ Hạn là 31/10<br>
+                                FYE = Tháng 12 ➔ Hạn là 31/03 năm sau
+                            </td>
+                            <td class="p-4 text-xs text-red-300">
+                                <b>Bắt buộc:</b> Tuyệt đối KHÔNG ĐƯỢC phép N/A.<br>
+                                Bị chặn nếu BK chưa xong.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-bold text-purple-400">Year-End (Cá nhân tự doanh)</td>
+                            <td class="p-4 text-xs">Mỗi năm 1 lần (T1 cá nhân)</td>
+                            <td class="p-4 text-xs font-mono text-emerald-300">
+                                Luôn là ngày 15/06 của năm tiếp theo
+                            </td>
+                            <td class="p-4 text-xs">
+                                Thuế năm 2025 ➔ Hạn 15/06/2026
+                            </td>
+                            <td class="p-4 text-xs">
+                                Năm tài chính cá nhân luôn kết thúc vào tháng 12.
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50 bg-slate-800/30">
+                            <td class="p-4 font-bold text-rose-400">T4 / T4A / T5</td>
+                            <td class="p-4 text-xs">Khai 1 lần vào đầu năm</td>
+                            <td class="p-4 text-xs font-mono text-emerald-300">
+                                Ngày cuối cùng của tháng 2 (28/02 hoặc 29/02)
+                            </td>
+                            <td class="p-4 text-xs">
+                                Hồ sơ năm 2025 ➔ Hạn 28/02/2026
+                            </td>
+                            <td class="p-4 text-xs">
+                                T4 (Lương), T4A (Hoa hồng/thầu phụ), T5 (Cổ tức).
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-700/50">
+                            <td class="p-4 font-bold text-rose-400">T5018</td>
+                            <td class="p-4 text-xs">Khai 1 lần mỗi năm</td>
+                            <td class="p-4 text-xs font-mono text-emerald-300">
+                                Ngày 30/06 hàng năm
+                            </td>
+                            <td class="p-4 text-xs">
+                                Hồ sơ năm 2025 ➔ Hạn 30/06/2026
+                            </td>
+                            <td class="p-4 text-xs">
+                                Áp dụng riêng cho các doanh nghiệp ngành Xây dựng (Construction).
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+
+</body>
+</html>
